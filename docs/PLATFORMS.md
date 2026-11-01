@@ -1,62 +1,35 @@
-# DKR-R platform support
+# DKR-R v1.0.12 platforms
 
-We're keeping Windows and Linux together. Linux releases must include an
-AppImage, not just a loose executable. Android and Linux ARM64 have separate
-ports, and macOS now has a source/build workflow.
+This release includes Windows, Linux and Steam Deck. Both Linux architectures
+have AppImages. Keep the full package together, including its helpers and notices.
 
-1.0.7 release packaging targets (15 October 2026):
-
-| Platform | Current delivery | Important limits |
+| Platform | Download | Requirements |
 |---|---|---|
-| Windows x64 | Public ZIP | Use the whole package, including private workers. |
-| Linux x86_64 | Public AppImage | Requires glibc 2.38+ and a working compatible Vulkan driver. |
-| Linux ARM64 | ARM64 AppImage | Needs glibc 2.38+, compatible 64-bit Linux/Vulkan and physical-device qualification. Cross-build and QEMU checks are not a physical GPU test. |
-| Steam Deck | Linux x86_64 AppImage payload | A separate named artifact, not a different engine build. SteamOS/controller integration needs a physical-device check. |
-| Android ARM64 | APK, code 1070001 | Android 9+, ARM64 OS and compatible Vulkan features are required. Startup, driver behaviour and sustained performance vary; desktop parity is not established. Existing app ID/signature are retained. |
-| macOS | Source/build-kit support | Requires an Apple build host. No newly qualified macOS binary is included in this delivery; integrated Experimental Rollback is currently gated out on Apple. |
-| iOS | Merged sideload source port | Contributor validation is recorded separately. No newly built IPA is supplied in this pass. |
+| Windows x64 | `DKR-R-1.0.12-Windows-x64.zip` | Windows 10 or newer and a compatible Vulkan driver. Extract the whole ZIP. |
+| Linux x86_64 | `DKR-R-1.0.12-Linux-x86_64.AppImage` | glibc 2.38, GLIBCXX_3.4.32 and a compatible Vulkan driver. |
+| Linux ARM64 | `DKR-R-1.0.12-Linux-aarch64.AppImage` | 64-bit Linux and Vulkan, with the same library requirements. Physical GPU testing remains separate. |
+| Steam Deck | `DKR-R-1.0.12-SteamDeck-x86_64.AppImage` | The same payload as Linux x86_64. Device, controller and gyro checks need a Deck. |
+| Android | No v1.0.12 build | Android releases are no longer supported because performance is not good enough across devices. |
+| macOS / iOS | No v1.0.12 build | Skipped for this release. Earlier Apple downloads keep their original version numbers. |
 
-Both clean US v1.0 and US Rev A/v1.1 ROMs are supported by the native revision
-selection. Owning a 64-bit CPU is not enough if the OS or GPU driver lacks the
-required features. There is no 32-bit ARM or Android x86 package in this workflow.
+Both supported US ROM revisions remain available: v1.0 and Rev A/v1.1. Online
+still checks architecture, build and floating-point compatibility. Having a
+download for two architectures does not mean every combination can race together.
 
-These Linux packages were built with a glibc 2.38 baseline. An AppImage does
-not replace the system's glibc or Vulkan driver; an older distribution needs
-an appropriate source build rather than a renamed package.
+An AppImage does not replace the system's glibc, C++ runtime or graphics driver.
+Older distributions need a compatible source build. Required non-system linked
+libraries are included; the normal desktop, audio and font stack must be present.
 
-## Android and handhelds
+Apple host/device compile checks are still useful for source development. They
+do not produce qualified v1.0.12 downloads, and the current integrated Rollback
+backend remains gated off on Apple. Old packages must not be renamed or put in
+the v1.0.12 update manifest.
 
-The mobile UI uses a Menu drawer, density-aware text and finger scrolling.
-**Controls → Touch Screen** offers editable N64-style touch groups, including
-position, size, opacity, visibility and left-handed placement. Menu remains
-available when racing controls are hidden. Android uses in-process SDL2 input,
-not the desktop SDL3 helper.
+Existing Android installations and source instructions remain available. Skipping
+Android releases does not require deleting saves or uninstalling the old app.
+The historical application ID and signing requirements remain relevant to any
+future compatible Android build.
 
-Install compatible updates over the existing app where possible. Uninstalling
-removes Android's private app data, so export saves first. Use file/ZIP imports
-when folder picking is unavailable. APK compilation alone does not certify
-Adreno, Mali or a particular handheld.
-
-For a black screen, crash or slowdown, record the device, Android version,
-build/version code and scene. Reopen the app and use
-**About DKR-R → Support summary → Export Android Startup Logs** if available.
-Do not keep retrying a diagnostic action that itself crashes.
-The [troubleshooting guide](TROUBLESHOOTING.md) explains what to send.
-
-Android's integrated rollback port does not establish cross-architecture
-netplay compatibility: admission still checks architecture and floating-point
-mode. Backgrounding Android ends an active experimental match rather than
-leaving other racers waiting on a suspended app.
-
-## Building and qualification
-
-Follow [Building DKR-R](BUILDING.md). The older
-[ARM build recipes](ARM-PLATFORM-PREVIEW.md) and
-[mobile UI implementation report](ANDROID-MOBILE-UI.md) retain their original
-preview results; check current toolchain settings before reproducing them.
-
-A platform is not qualified just because it compiles. Check ROM import, both
-revisions, rendering, audio, controller/touch input, save reload, return to the
-launcher and background/resume on actual hardware. Online testing comes after
-ordinary play works. [Release validation](../RELEASE-VALIDATION.md) distinguishes
-automated checks from hardware/gameplay acceptance.
+See [Building](BUILDING.md) and [release validation](../RELEASE-VALIDATION.md).
+Compilation and automated checks are recorded separately from actual rendering,
+controller, audio, Steam Deck and online playtesting.
