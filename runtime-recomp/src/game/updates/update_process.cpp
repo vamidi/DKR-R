@@ -222,7 +222,7 @@ Child::Child(const std::filesystem::path& exe, const std::vector<std::string>& a
                                  ").");
     CloseHandle(process.hThread);
     impl->handle = process.hProcess;
-#elif defined(__ANDROID__) || defined(DKR_IOS)
+#elif defined(__ANDROID__) || defined(DKR_IOS) || defined(__SWITCH__)
     (void)exe;
     (void)arguments;
     (void)directory;

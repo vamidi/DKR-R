@@ -1,0 +1,6 @@
+# NACP display fields for the DKR-R Switch build.
+# configure_file(@ONLY) fills the @vars@ from the CMake cache; the parsed
+# result becomes a binary nacp via cmake/make-nacp.cmake and nacptool.
+name=@DKR_SWITCH_NRO_TITLE@
+publisher=@DKR_SWITCH_NRO_AUTHOR@
+display_version=@DKR_RELEASE_VERSION@

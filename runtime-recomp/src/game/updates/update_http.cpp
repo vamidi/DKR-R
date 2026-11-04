@@ -9,7 +9,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <winhttp.h>
-#elif !defined(__ANDROID__) && !defined(__APPLE__)
+#elif !defined(__ANDROID__) && !defined(__APPLE__) && !defined(__SWITCH__)
 #include <curl/curl.h>
 #endif
 namespace dkr::updates {
@@ -119,7 +119,7 @@ void HttpSink::finish() {
         throw std::runtime_error("Update request cancelled or timed out.");
 }
 
-#if !defined(__ANDROID__) && !defined(__APPLE__)
+#if !defined(__ANDROID__) && !defined(__APPLE__) && !defined(__SWITCH__)
 namespace {
 #ifdef _WIN32
 struct Handle {

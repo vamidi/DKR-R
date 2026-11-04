@@ -1,0 +1,52 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "switch-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/../build/${presetName}",
+      "toolchainFile": "${sourceDir}/cmake/SwitchToolchain.cmake",
+      "environment": {
+        "DEVKITPRO": "$penv{DEVKITPRO}"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "switch-scaffold",
+      "displayName": "Switch scaffolding (no ROM payloads, no RT64)",
+      "inherits": "switch-base",
+      "cacheVariables": {
+        "DKR_RUNTIME_BUILD_GENERATED": "OFF",
+        "DKR_RUNTIME_BUILD_RT64": "OFF"
+      }
+    },
+    {
+      "name": "switch",
+      "displayName": "Nintendo Switch product build (DKR-R.nro)",
+      "inherits": "switch-base",
+      "cacheVariables": {
+        "DKR_RUNTIME_BUILD_GENERATED": "ON",
+        "DKR_RUNTIME_BUILD_RT64": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "switch-scaffold",
+      "configurePreset": "switch-scaffold"
+    },
+    {
+      "name": "switch",
+      "configurePreset": "switch"
+    }
+  ]
+}
