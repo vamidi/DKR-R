@@ -2,7 +2,7 @@
 
 These ROM-free checks run locally and are defined in
 [`nightly-host-checks.yml`](../.github/workflows/nightly-host-checks.yml).
-The workflow runs daily at 08:17 UTC or through manual dispatch, without adding
+The workflow runs weekly on Mondays at 08:17 UTC or through manual dispatch, without adding
 work to pull-request checks. ASan/UBSan covers Linux and macOS; seeded stress
 covers Linux, macOS, and Windows.
 
