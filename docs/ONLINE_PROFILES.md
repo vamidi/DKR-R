@@ -1,8 +1,8 @@
 # Online profiles, pictures and remembered sign-in
 
-Online and the Mod Store use the same Discord account and display name.
+Online and the Mod Library use the same Discord account and display name.
 Open **DKR-R Online → Online Profile**, edit the name and choose **Save profile**.
-The same name appears to friends and in the Mod Store. An active lobby keeps
+The same name appears to friends and in the Mod Library. An active lobby keeps
 its current name until you leave. A failed save keeps your draft for retrying.
 
 ## Pictures and friends
@@ -37,11 +37,11 @@ profile-header layout needs no extra deployment. A fresh server needs both the
 existing directory setup and the profile migrations. The website's FTP files
 and mod-upload method stay as they are.
 
-Build the owner bundle with the existing Patch Pipeline and its pinned esbuild:
+Build the owner bundle from the maintained service modules with the pinned esbuild:
 
 ```text
-python -B patches/online-directory/backend_pipeline.py --output <fresh-bundle-folder> --esbuild <esbuild-executable>
-python -B patches/online-directory/backend_pipeline.py --output <bundle-folder> --verify
+python -B services/online-directory/build.py --output <fresh-bundle-folder> --esbuild <esbuild-executable>
+python -B services/online-directory/build.py --output <bundle-folder> --verify
 ```
 
 1. Back up the live private API Worker, directory Worker and private API D1
@@ -55,7 +55,7 @@ python -B patches/online-directory/backend_pipeline.py --output <bundle-folder> 
 4. Update the existing private API Worker with
    `PRIVATE-API/worker-single-file.mjs`. Keep all current variables, secrets and
    bindings. No new service binding is needed.
-5. Use matching v1.0.12 launchers. Sign out and back in once, then check the
+5. Use matching v1.0.15 launchers. Sign out and back in once, then check the
    separate Discord name/image choices, custom picture preview and sharing.
 
 The API stores one small selected avatar per account and verified links to
@@ -65,5 +65,5 @@ gameplay transport and Rollback path are unchanged.
 
 For rollback, restore your saved Worker code and configuration. The added
 tables can remain. Prefer your live backups over an older bundled rollback
-copy if you have made other API changes. See the [original directory setup](../patches/online-directory/DEPLOYMENT.md)
+copy if you have made other API changes. See the [original directory setup](../services/online-directory/DEPLOYMENT.md)
 for a new installation and the generated bundle's instructions for its exact files.

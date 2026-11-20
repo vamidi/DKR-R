@@ -18,6 +18,7 @@ TOOLING_TESTS_SKIP = {
     "hud_pipeline_tests.py": "needs generated v77/v80 sources, both ELFs and the baseline source ZIP",
     "hud_reference_source_tests.py": "needs a read-only Golden Balloon checkout",
     "magic_code_pipeline_tests.py": "needs generated v77/v80 sources (CTest passes them)",
+    "play_launch_layout_tests.py": "needs a complete production package and a native window for SDL readback",
     "water_profile_policy_tests.py": "needs both ELFs and their water policies",
 }
 # Tests that need build tools beyond Git and Python run in the opt-in
@@ -33,6 +34,9 @@ TOOLING_TESTS = tuple(
         if path.name not in TOOLING_TESTS_SKIP and path.name not in HOST_TOOL_TESTS
     )
 )
+# The scripts' own unit tests (scripts/tests/test_*.py) run in tooling too:
+# they need Python only, and nothing else in CI runs most of them.
+SCRIPT_TESTS = tuple(sorted(path.name for path in (ROOT / "scripts/tests").glob("test_*.py")))
 # pinned_bytes_tests.py stays in tooling for its unit tests; its real pre-commit
 # run (which installs hook environments) is gated on this variable, which
 # host-tools sets when it runs the file again.
@@ -42,7 +46,17 @@ PRE_COMMIT_INTEGRATION = "DKR_PRE_COMMIT_INTEGRATION"
 NEEDS_EXTERN = {
     "android_startup_contract_tests.py": ("extern/n64-modern-runtime", "extern/rt64"),
     "live_lod_pipeline_tests.py": ("extern/rt64",),
+    # Also needs the generated v77/v80 sources scripts/prepare_payloads.py leaves in build/generated.
+    "test_generator.py": (
+        "extern/dkr-decomp",
+        "extern/n64-modern-runtime",
+        "build/generated/v77/RecompiledFuncs",
+        "build/generated/v80/RecompiledFuncs",
+    ),
 }
+# The replay probe generator's own tests: they ride in the tooling suite when their inputs exist.
+# CTest runs the same file as ReplayProbePipelineControlFlow.
+REPLAY_PROBE_TEST = "runtime-recomp/tests/replay_probe/test_generator.py"
 
 
 def missing_checkout(test: str) -> str | None:
@@ -84,8 +98,15 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     suites = [name for names in args.suite for name in names] if args.suite else list(DEFAULT_SUITES)
     commands = {
-        "guard": [[sys.executable, "scripts/pattern_guard.py", "--tree", "--baseline", "check"]],
-        "tooling": [[sys.executable, f"runtime-recomp/tests/{test}"] for test in TOOLING_TESTS],
+        "guard": [
+            [sys.executable, "scripts/pattern_guard.py", "--tree", "--baseline", "check"],
+            [sys.executable, "scripts/identity_guard.py", "check"],
+        ],
+        "tooling": [
+            *([sys.executable, f"runtime-recomp/tests/{test}"] for test in TOOLING_TESTS),
+            *([sys.executable, f"scripts/tests/{test}"] for test in SCRIPT_TESTS),
+            [sys.executable, REPLAY_PROBE_TEST],
+        ],
         "host-tools": [
             [sys.executable, f"runtime-recomp/tests/{test}"]
             for test in (*sorted(HOST_TOOL_TESTS), "pinned_bytes_tests.py")
@@ -98,13 +119,15 @@ def main(argv=None) -> int:
         for command in commands[suite]:
             absent = missing_checkout(Path(command[-1]).name) if suite == "tooling" else None
             if absent:
-                print(f"[{suite}] skip {command[-1]}: {absent} is not checked out", flush=True)
+                print(f"[{suite}] skip {command[-1]}: {absent} is missing", flush=True)
                 continue
             print(f"[{suite}] {' '.join(command[1:])}", flush=True)
             if args.list:
                 continue
             try:
                 environment = {**os.environ, PRE_COMMIT_INTEGRATION: "1"} if suite == "host-tools" else None
+                if command[-1] == REPLAY_PROBE_TEST:
+                    environment = {"DKR_TEST_GENERATED_ROOT": str(ROOT / "build/generated"), **os.environ}
                 result = subprocess.run(command, cwd=ROOT, env=environment)
             except OSError as error:
                 print(f"Could not run {command[1]}: {error}", file=sys.stderr)

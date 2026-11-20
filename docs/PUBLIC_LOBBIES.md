@@ -1,13 +1,13 @@
 # Public lobbies and online presence
 
-In v1.0.12, use **DKR-R Online** to connect, browse **Public / Friends** and host
+Use **DKR-R Online** to connect, browse **Public / Friends** and host
 a **Private / Public** lobby. These are additions to the existing launcher
 layout. No website frontend or new standalone account is required.
 
 ## Sign in once
 
 Choose **Sign in with Discord** and complete the normal browser pairing flow.
-An existing Mod Store sign-in is shared with Online. Signing out or switching
+An existing Mod Library sign-in is shared with Online. Signing out or switching
 accounts updates both uses. Local play and achievements do not need sign-in.
 
 Enable **Keep me signed in** before signing in. Windows uses DPAPI. Linux uses
@@ -86,7 +86,7 @@ Profile pictures and Discord metadata also need the private API's profile D1
 migrations and matching Workers. An already deployed friends/pictures bundle
 does not need redeploying for the final header layout. See [profiles and deployment](ONLINE_PROFILES.md#deploying-the-matching-profile-api).
 
-See the [deployment and rollback instructions](../patches/online-directory/DEPLOYMENT.md),
-[local backend QA record](../patches/online-directory/QA.md) and
-[owner acceptance checklist](../patches/online-directory/PLAYTEST.txt).
+See the [deployment and rollback instructions](../services/online-directory/DEPLOYMENT.md),
+[local backend QA record](../services/online-directory/QA.md) and
+[owner acceptance checklist](../services/online-directory/PLAYTEST.txt).
 Do not treat local synthetic load tests as proof of worldwide network behaviour.
