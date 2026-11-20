@@ -11,14 +11,9 @@ The older execution ledger at
 `.superpowers/sdd/dkr-r-nintendo-switch-port-dev-2026-10-17-approved/progress.md`
 is superseded by this file. Update this file, not that one.
 
-The per-area work breakdown lives in `handover/`:
-
-- `handover/README.md` — issue board, status, dependencies, execution waves.
-- `handover/TEMPLATE.md` — issue format.
-- `handover/issues/SW-001` … `SW-021` — one self-contained issue per port area
-  (build, runtime, filesystem, saves, audio, input, graphics, shaders, UI,
-  performance, lifecycle, updates, packaging, licensing, docs, CI, IDE,
-  netplay, mods, gyro).
+The milestone plan, per-area work and session boundaries all live in this file
+(see [Milestones](#milestones)). One milestone is worked per session; do not
+start a milestone before its predecessor has recorded evidence.
 
 ## Snapshot
 
@@ -50,11 +45,10 @@ The branch now sits on the completed fold instead of the v1.0.7 beta 2 tree.
 - `DKRSwitchHello` still fails to compile with the same five libnx 4.x API
   errors recorded under M0. The rebase did not change that debt.
 - The fold replaced the first-party patch layers with source and left
-  `architecture/pattern-guard-baseline.txt` empty. Any instruction in
-  `handover/` that stages changes through `patches/switch/` or assumes the
-  v1.0.7 layer chain must be revalidated before use. RT64, plume and nxvk
-  remain third-party pins; first-party Switch code belongs in `switch/` and
-  `runtime-recomp/src/switch/`.
+  `architecture/pattern-guard-baseline.txt` empty. The old per-area issue pack
+  was removed with `handover/`; this file is now the only sequencing source.
+  RT64, plume and nxvk remain third-party pins; first-party Switch code belongs
+  in `switch/` and `runtime-recomp/src/switch/`.
 
 Status legend: `DONE` = exit criteria met and evidence recorded ·
 `IN PROGRESS` = work landed, criteria not met · `BLOCKED` = waiting on a
@@ -208,6 +202,28 @@ Still needed (mirroring the Android/iOS branches):
 
 ## Milestones
 
+### Session protocol
+
+One milestone per session. The sessions share one checkout, so run one at a
+time. Do not start a milestone until its predecessor is `DONE` with recorded
+evidence.
+
+Every session:
+
+- works on `switch-port` and keeps Switch behaviour behind `DKR_SWITCH`;
+- never edits `extern/` in place (third-party fixes are `patches/<dep>/` plus a
+  `patches/manifest.json` entry; first-party changes go in source);
+- records evidence (command, path, log, error), never "works";
+- runs `python scripts/check.py --suite guard` before reporting done, and
+  `--suite guard,tooling` after touching scripts or CMake;
+- ticks a device-only criterion only after an on-device observation.
+
+Reference material, read-only and outside this repository:
+`D:\Personal\C++\DK64Recomp-NX` — a shipped Switch port of a Rainchus-lineage
+N64 recompilation with a different renderer. Read its `switch/` layer for
+platform behaviour, not for game or renderer code. It is GPL-3.0; do not copy
+code from it without deciding the licence deliberately.
+
 ### M0 — Scaffolding — IN PROGRESS
 
 **Goal:** `switch/` configures under the devkitA64 toolchain; a hello `.nro`
@@ -246,9 +262,10 @@ boots on device; the existing host prepare pipeline still runs unchanged.
 **Remaining work (ordered):**
 
 1. Port `switch/src/hello.c` to the libnx 4.12 API and rebuild.
-2. Copy the resulting `.nro` to the SD card and confirm boot on hardware.
-3. Run the host prepare pipeline via WSL for both US revisions + RSP and
-   record the exact output paths.
+2. Copy the resulting `.nro` to the SD card and boot it from the Homebrew Menu
+   in title mode (Album/applet mode lacks the memory budget).
+3. Run the host prepare pipeline with the existing workflow for both US
+   revisions and the RSP, and record the exact output paths.
 4. Decide whether to commit the scaffolding before starting M1.
 
 **Notes / rulings from the prior run:**
@@ -265,24 +282,47 @@ boots on device; the existing host prepare pipeline still runs unchanged.
   `.nro` GPL-encumbered for recipients. `docs/SWITCH.md` and `THIRD_PARTY.md`
   must carry the notice (M4).
 
-### M1 — CPU bring-up, no GPU — NOT STARTED
+### M1 — Runtime link without a GPU — NOT STARTED
 
-**Goal:** `DKRPortGame` cross-compiles with generated payloads + sljit RSP +
-SDL2 audio/input + saves. Rendered via the debug console only.
+**Goal:** `DKRPortGame` links for aarch64 and reaches the game with the null
+renderer, SDL2 audio/input, and a save file. No Vulkan.
+
+**Platform prerequisites** (from the reference port; expect to need each):
+
+- 64 MB address-space reservation instead of 512 GB / 4 GB in
+  `librecomp/include/librecomp/addresses.hpp`; Horizon commits memory eagerly.
+- Thread shims: 1 MiB stacks via `-Wl,--wrap=pthread_create`, `pthread_detach`
+  no-op, core placement (main + SDL audio on 0, game/VI/timer/RSP on 1,
+  graphics on 2), ultramodern priority mapping.
+- `mmap`/`munmap`/`mprotect`/`getpagesize` over `aligned_alloc`.
+- Save rotation with remove/rename; `std::filesystem::copy_file` ends in
+  `fchmod`, which the SD driver rejects.
+- `quick_exit` → `_Exit`; reset the mod context before `_exit`.
+- `__SWITCH__` in the concurrentqueue semaphore path and `WindowHandle`.
+- Decide mods: gate `LiveRecomp` out of the link, or add the libnx `Jit` and
+  sljit configuration it needs. The RSP is statically recompiled; sljit is only
+  for mods.
+- SDL2 built for Switch without OpenGL/EGL (or unused EGL entry points stubbed).
+  devkitPro's SDL2 portlib hardcodes `-lEGL -lglapi -ldrm_nouveau` for
+  switch-mesa and must not be mixed with nxvk.
+- No launcher without RT64: `runtime_ui.cpp` is only in the
+  `DKR_RUNTIME_BUILD_RT64` source list and `game_main.cpp` gates
+  `run_startup_screen`. Use a fixed ROM path under `sdmc:/switch/DKR-R/`.
 
 **Exit criteria:**
 
-- [ ] `cmake --preset switch` configures (requires generated v77/v80 payloads).
-- [ ] `DKRPortGame` links for aarch64 with no Vulkan renderer.
+- [ ] `cmake --preset switch` configures with `DKR_RUNTIME_BUILD_RT64=OFF`.
+- [ ] `DKRPortGame` links for aarch64 with no Vulkan symbols.
 - [ ] `__SWITCH__` entry branch in `game_main.cpp`.
-- [ ] Save directory under the app's savedata/SD path.
-- [ ] Device checklist recorded: ROM import for both revisions, EEPROM
-  save/reload, audio, controller mapping, debug console output.
+- [ ] Save directory under the app's savedata/SD path, with rotation.
+- [ ] Device checklist recorded: ROM load, EEPROM save/reload, audio,
+  controller mapping.
+- [ ] Guard suite passes.
 
 **Current state:** not started. Evidence:
 
 - `cmake --preset switch` fails immediately at
-  `runtime-recomp/CMakeLists.txt:144` because `DKR_GENERATED_SOURCE_V80` is empty
+  `runtime-recomp/CMakeLists.txt` because `DKR_GENERATED_SOURCE_V80` is empty
   (`DKR_GENERATED_SOURCE_V77` defaults to `runtime-recomp/RecompiledFuncs`,
   which does not exist).
 - The runtime `DKRPortGame` target has no `DKR_SWITCH` source/link branch yet.
@@ -291,21 +331,36 @@ SDL2 audio/input + saves. Rendered via the debug console only.
 
 ### M2 — Renderer (RT64 Vulkan over nxvk) — NOT STARTED
 
-**Goal:** RT64 Vulkan presents through nxvk; HLSL shaders are precompiled on
-the host into RT64's shader-cache format and packaged in RomFS; first rendered
-menu.
+**Goal:** RT64 Vulkan presents through nxvk. Shaders are not compiled on
+device: host `dxc` embeds SPIR-V at build time and `re-spirv` specialises it on
+the CPU at runtime. First rendered menu and race.
+
+**Tasks, in order:**
+
+- Build NXVK (`scripts/Build-NXVK.ps1`) and run its own smoke ladder on device:
+  `nvk_tri`, `nvk_scene`, `nvk_multi`, `nvk_textures`, `nvk_cubemap`,
+  `nvk_vi_swapchain`, plus `nvk_zcull` and `nvk_desc_flush`.
+- Patch plume: `volkInitializeCustom(vk_icdGetInstanceProcAddr)` instead of
+  `volkInitialize`; `VK_NN_VI_SURFACE_EXTENSION_NAME`; `RenderWindow` =
+  `NWindow*`; surface via `vkCreateViSurfaceNN`; `nwindowGetDimensions`.
+- Presentation format `R8G8B8A8_UNORM` for the swapchain and the final VI
+  pipeline (the Android RGBA patch is the precedent). Port the generic half of
+  `patches/android/vulkan-surface-capabilities.patch`: `maxImageCount == 0` is
+  unbounded, alpha fallback, required usage flags.
+- Persist a `VkPipelineCache` so NAK compilation does not hitch on every start.
+- `switch_rt64_window.cpp` replaces `rt64_application_window.cpp` (Android
+  pattern). The native window is `nwindowGetDefault()`; SDL has no Switch WM
+  info.
+- First frame at 640x480, then 720p. Dock/undock must not crash or leak.
 
 **Exit criteria:**
 
-- [ ] `scripts/Build-NXVK.ps1` completes and installs `nxvk.pc` + archives.
-- [ ] `FindNXVK.cmake` resolves and links `nxvk::nxvk`.
-- [ ] `switch_rt64_window.cpp` supplies the native window / presentation path.
-- [ ] `rt64_renderer.cpp` has a `__SWITCH__` window-handle branch.
-- [ ] Shader cache is generated host-side and loaded from RomFS on device
-      without invoking dxc.
-- [ ] A small Vulkan probe (pattern: `DKRExperimentalGpuProbe`) runs on device
-      before full RT64 wiring.
-- [ ] First rendered menu/frame on device.
+- [ ] `scripts/Build-NXVK.ps1` installs `nxvk.pc` + archives.
+- [ ] NXVK ladder passes on device (list failures, do not hide them).
+- [ ] `FindNXVK.cmake` links `nxvk::nxvk`.
+- [ ] A DKR menu and a race render on device.
+- [ ] Dock/undock is stable.
+- [ ] Guard suite passes.
 
 **Current state:** scaffolding only.
 
@@ -313,7 +368,7 @@ menu.
 - `extern/nxvk` is checked out at `c3abea1efde` (VERSION `26.2.2`).
 - `nxvk.pc` is not installed, so the full `switch` preset would fail at the
   nxvk lookup after the generated-source gate is fixed.
-- No `patches/switch/`, no `switch_rt64_window.cpp`, no shader-cache packaging.
+- No `switch_rt64_window.cpp`, no plume Switch patches.
 
 ### M3 — Gameplay qualification — NOT STARTED
 
@@ -331,6 +386,20 @@ presets; Joy-Con/Pro Controller mapping; memory ceilings; cortex-a57 perf pass.
 
 **Current state:** not started; depends on M1 + M2.
 
+**Tasks:**
+
+- Launcher and import UX. The launcher is SDL_Renderer + ImGui; use the software
+  renderer unless measurement says otherwise. `runtime_ui.cpp` is only compiled
+  with RT64 today — decouple it or add it explicitly for Switch. ROM import is
+  NFD-based; write an NFD backend over `sdmc:` or scan a fixed folder.
+- Controller mapping for Joy-Con and Pro Controller; decide SDL2
+  gamecontroller vs a libnx `pad` backend.
+- Memory: texture-cache ceilings modelled on Android, applet heap, title-mode
+  launch.
+- Performance: apm performance configuration, core placement, resolution
+  presets (handheld 720p, docked 1080p, lower internal for heavy scenes).
+- Lifecycle: background/resume, dock/undock, clean exit to the Homebrew Menu.
+
 ### M4 — Packaging + docs — NOT STARTED
 
 **Goal:** Reproducible package + documentation + CI host-compile check.
@@ -345,6 +414,10 @@ presets; Joy-Con/Pro Controller mapping; memory ceilings; cortex-a57 perf pass.
 - [ ] Device acceptance checklist appended in the style of
       `RELEASE-VALIDATION.md`.
 - [ ] Nightly CI host-compile check follows the existing workflow pattern.
+
+**Licensing:** NXVK's new files are GPL-2.0-or-later; the combined `.nro` is
+GPL-3.0 because the runtime already links GPL-3.0 N64ModernRuntime. State the
+source-availability obligation in `docs/SWITCH.md` and `THIRD_PARTY.md`.
 
 **Current state:** not started. `build/switch-scaffold/dkr-release.json` exists
 as a scaffold artifact only; there is no packaging script or Switch doc.
@@ -488,3 +561,4 @@ When updating this file:
 | 2026-11-03 | Created this ledger. Verified environment, scaffold configure, hello build failure, missing generated payloads, missing nxvk portlib, uncommitted branch state. |
 | 2026-11-03 | Added the `handover/` issue pack: 21 per-area issues (SW-001…SW-021) plus index and template. |
 | 2026-11-20 | Rebased `switch-port` onto the post-fold `main` (v1.0.15, `8c742a0`). Re-verified scaffold configure, Switch markers and the unchanged hello failure. Recorded that the fold invalidated the old `patches/switch/` staging assumptions. |
+| 2026-11-20 | Removed the `handover/` pack. The milestone session protocol and the corrected M1/M2 prerequisites now live only in this file. |
