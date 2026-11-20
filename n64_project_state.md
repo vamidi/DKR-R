@@ -26,7 +26,7 @@ start a milestone before its predecessor has recorded evidence.
 | Target | Nintendo Switch homebrew, installable `DKR-R.nro` |
 | Toolchain | devkitA64 r30-1 / GCC 16.1.0 / libnx 4.12.0 / switch-tools 1.13.1 |
 | Build host | Windows + Ninja; WSL2/Ubuntu for the existing prepare pipeline |
-| Current milestone | **M0 — Scaffolding (in progress)** |
+| Current milestone | **M0 — Scaffolding (build green; device boot and US v1.0 payload blocked)** |
 | Phase 1 verdict | Not playable; no game `.nro` built yet |
 
 ### Post-fold rebase (2026-11-20)
@@ -42,8 +42,9 @@ The branch now sits on the completed fold instead of the v1.0.7 beta 2 tree.
   tree (`build/switch-scaffold`, 2026-11-20). The cache still records
   `DKR_SWITCH=ON`, `DKR_SWITCH_HAS_EXCEPTIONS=1`, `DKR_SWITCH_HAS_RTTI=1`, and
   the `DKRSwitchHello` target is generated.
-- `DKRSwitchHello` still fails to compile with the same five libnx 4.x API
-  errors recorded under M0. The rebase did not change that debt.
+- `DKRSwitchHello` failed to compile directly after the rebase with the five
+  libnx 4.x API errors recorded under M0. Fixed on 2026-11-20; the target now
+  compiles and links clean (see the M0 evidence below).
 - The fold replaced the first-party patch layers with source and left
   `architecture/pattern-guard-baseline.txt` empty. The old per-area issue pack
   was removed with `handover/`; this file is now the only sequencing source.
@@ -58,7 +59,7 @@ dependency/decision · `NOT STARTED` · `DEFERRED` = out of phase 1.
 
 | Milestone | Status | One-line state |
 |---|---|---|
-| M0 — Scaffolding | **IN PROGRESS** | `switch-scaffold` configures green; hello `.nro` fails to compile; device boot unverified |
+| M0 — Scaffolding | **IN PROGRESS** | configure green; hello `.nro` builds (198,853 B); device boot blocked (no console reachable); v77 payload blocked (no US v1.0 ROM) |
 | M1 — CPU bring-up (no GPU) | **NOT STARTED** | No generated payloads, no `DKRPortGame` Switch branch, no platform glue |
 | M2 — Renderer (RT64 + nxvk) | **NOT STARTED** | nxvk checkout present but not built/installed; no Switch window source |
 | M3 — Gameplay qualification | **NOT STARTED** | Depends on M1/M2 |
@@ -224,49 +225,153 @@ N64 recompilation with a different renderer. Read its `switch/` layer for
 platform behaviour, not for game or renderer code. It is GPL-3.0; do not copy
 code from it without deciding the licence deliberately.
 
-### M0 — Scaffolding — IN PROGRESS
+### M0 — Scaffolding — IN PROGRESS (build green; device boot and US v1.0 payload blocked)
 
 **Goal:** `switch/` configures under the devkitA64 toolchain; a hello `.nro`
 boots on device; the existing host prepare pipeline still runs unchanged.
 
 **Exit criteria:**
 
-- [ ] `switch-scaffold` configure succeeds and both exceptions/RTTI checks pass.
-- [ ] `DKRSwitchHello` builds and produces `dkr-switch-hello.nro`.
+- [x] `switch-scaffold` configure succeeds and both exceptions/RTTI checks pass.
+- [x] `DKRSwitchHello` builds and produces `dkr-switch-hello.nro`.
 - [ ] The `.nro` boots on a homebrew-capable Switch and prints the banner.
+      **Blocked**: no console reachable from this host (probes below).
 - [ ] Host prepare produces ELF + N64Recomp payloads for v77/v80 + RSP.
-- [ ] Scaffolding is committed on `switch-port` (or intentionally parked).
+      **Blocked**: the US v1.0 (v77) retail dump is not on this host.
+- [x] Scaffolding is committed on `switch-port` (see changelog).
 
-**Verified evidence:**
+**Verified evidence (2026-11-20, this session):**
 
-- `switch-scaffold` configure is green: `build/switch-scaffold/CMakeCache.txt`
-  records `DKR_SWITCH:BOOL=ON`, `DKR_SWITCH_HAS_EXCEPTIONS=1`,
-  `DKR_SWITCH_HAS_RTTI=1`.
-- `DKRSwitchHello` target exists in `build/switch-scaffold/build.ninja`.
-- The hello build **fails** against libnx 4.12.0. Errors in
-  `switch/src/hello.c`:
-  - `consoleInit(nwindowGetDefault())` — wrong argument type; current API is
-    `consoleInit(PrintConsole*)` (`consoleInit(NULL)` for the default console).
-  - `pad` is undeclared — needs a `PadState` plus `padInitializeDefault(&pad)`.
-  - `PadStateDown` is not a thing — use `padGetButtonsDown(&pad)`.
-  - `padGetButtons(&pad, PadStateDown)` — wrong arity; current signature is
-    `padGetButtons(const PadState*)`.
-  - `PadButton_Plus` / `PadButton_Minus` — current names are
-    `HidNpadButton_Plus` / `HidNpadButton_Minus`.
-  - `napms` is not declared — use `svcSleepThread(...)` or `nanosleep`.
-- No `.nro` exists under `build/switch-scaffold/`.
-- On-device boot: **not performed**.
-- `runtime-recomp/RecompiledFuncs` is absent, so the host prepare step has not
-  produced payloads for this checkout.
+*Configure and build.* Run from `switch/`:
+
+```text
+cmake --preset switch-scaffold --fresh          -> exit 0
+  Build files have been written to: D:/Personal/C++/dkr-n64recomp/build/switch-scaffold
+cmake --build ../build/switch-scaffold --target DKRSwitchHello      -> exit 0
+  [1/3] Building C object CMakeFiles/DKRSwitchHello.dir/src/hello.o
+  [2/3] Linking C executable DKRSwitchHello.elf
+cmake --build ../build/switch-scaffold --target DKRSwitchHello_nro  -> exit 0
+  [1/2] Building NRO executable target DKRSwitchHello_nro
+```
+
+- `build/switch-scaffold/CMakeCache.txt` still records `DKR_SWITCH:BOOL=ON`,
+  `DKR_SWITCH_HAS_EXCEPTIONS=1`, `DKR_SWITCH_HAS_RTTI=1`.
+- Artifact: `D:\Personal\C++\dkr-n64recomp\build\switch-scaffold\dkr-switch-hello.nro`,
+  198,853 bytes, 2026-11-20 15:22:04. Header magic `NRO0` at offset 0x10.
+- `DKRSwitchHello.elf`: `ELF64`, `Machine: AArch64`, `Type: DYN`.
+- Target naming: `DKRSwitchHello` builds only the ELF; the `elf2nro` step is the
+  `DKRSwitchHello_nro` target. The previous ledger instruction implied the ELF
+  target also produced the `.nro`; it does not.
+- Build log (`%TEMP%\dkr-hello-build.log`) has no warning or error lines.
+
+*libnx 4.12 API fixes in `switch/src/hello.c`* (the five recorded errors are
+gone): `consoleInit(NULL)`, `padConfigureInput(1, HidNpadStyleSet_NpadStandard)`
+plus `PadState pad` / `padInitializeDefault(&pad)` / `padUpdate(&pad)` /
+`padGetButtonsDown(&pad)`, `HidNpadButton_Plus | HidNpadButton_Minus`,
+`svcSleepThread(...)` instead of `napms`, plus `armGetSystemTick*`,
+`hosversionGet`/`HOSVER_*` and `appletGetAppletType` in the banner. The banner
+still exits on `+`/`-` or after five seconds and keeps
+`__nx_applet_type = AppletType_Application` (the weak symbol libnx reads for
+title-mode memory).
+
+*Device boot — not performed; console not reachable.* Probes from this host:
+
+```text
+Get-PnpDevice -PresentOnly | ? FriendlyName -match 'Nintendo|Switch'
+  -> no Nintendo/Switch USB device (only PCIe "Switch Port" and Hyper-V matches)
+arp -a                        -> only 192.168.0.1/.54/.73/.107/.114/.160/.184/.188/.243
+TCP connect :5000 (sys-ftpd) on each of those hosts -> none open
+nxlink.exe -r 3 build\switch-scaffold\dkr-switch-hello.nro
+  -> "pinging switch" / "No response from Switch!" (exit 1)
+nxlink.exe -a 192.168.0.255 -r 3 <same nro>
+  -> "Connection to 192.168.0.255 failed" (exit 1)
+```
+
+What is missing: a powered-on homebrew-capable console on `192.168.0.0/24`
+running the Homebrew Menu in **title mode** with the netloader (`nxlink`)
+listener, or its IPv4 address for the `dkr-switch-deploy` FTP path
+(`sys-ftpd`, port 5000). No SD/removable volume is mounted either
+(`Get-Volume` lists only `Fixed` drives), so there is no card path to copy to.
+Nothing was copied to a console.
+
+*Host prepare pipeline — not run; input missing.* State of the checkout:
+
+```text
+build/generated                     absent
+build/prepared                      absent
+build/decomp                        absent
+runtime-recomp/RecompiledFuncs      absent
+runtime-recomp/RecompiledRSP        present (tracked aspMain.cpp, 74,624 B)
+```
+
+ROM dumps found and their SHA-1 (the gate in `scripts/compose_payloads.py`):
+
+| File | Size | SHA-1 | Verdict |
+|---|---|---|---|
+| `C:\Users\Valencio Hoffman\Downloads\DKR-R-1.0.6-Windows-x64\Diddy Kong Racing (USA) (En,Fr) (Rev 1).z64` | 12,582,912 | `6d96743d46f8c0cd0edb0ec5600b003c89b93755` | matches retail US Rev A/v1.1 (**v80**) |
+| `...\Diddy Kong Racing (Europe) (En,Fr,De) (Rev 1).z64` | 12,582,912 | `b7f628073237b3d211d40406aa0884ff8fdd70d5` | Europe dump; not a supported US revision |
+| US v1.0 (**v77**) | — | expected `0cb115d8716dbbc2922fda38e533b9fe63bb9670` | **not present** |
+
+Searches: `D:\Personal\C++` (depth 5) and `Downloads`/`Documents`/`Desktop`
+(depth 3) for `*.z64/*.v64/*.n64`; a `D:\` search (depth 6) timed out at 180 s
+after finding only `D:\Personal\C++\quest64\yoshi_story.z64`. No US v1.0 dump.
+
+The ROM gate agrees (read-only failure; it exits before creating any target):
+
+```text
+python scripts\compose_payloads.py rom --revision 77 "<Europe Rev 1>.z64" build\decomp\v77\baseroms\baserom.us.v77.z64
+compose_payloads: ...\Diddy Kong Racing (Europe) (En,Fr,De) (Rev 1).z64:
+  SHA-1 b7f628073237b3d211d40406aa0884ff8fdd70d5,
+  expected 0cb115d8716dbbc2922fda38e533b9fe63bb9670 (US v77)
+exit 1; build/decomp was not created
+```
+
+Pipeline prerequisites that are already in place, and what is not:
+
+- WSL2 is installed (`Default Version: 2`, distro `Ubuntu`); Ubuntu has
+  `python3 3.12.3`, `cmake`, `ninja`, `rsync`. `mips-linux-gnu-ld` is absent and
+  the pipeline installs `binutils-mips-linux-gnu` via `sudo apt-get` unless
+  `-SkipApt` is passed with the packages pre-installed.
+- `extern/dkr-decomp` is at the pinned `06cf09bab2e0a5f210d2a14a25cdf22c3c5b18c6`
+  with a clean worktree; its tool submodules are uninitialised (the pipeline
+  runs `git submodule update --init --recursive`).
+- `build/runtime-tools/n64recomp` is absent (the pipeline configures and builds
+  `N64RecompCLI`/`RSPRecomp` there).
+- RSP input gate: `runtime-recomp/RecompiledRSP/aspMain.cpp` has
+  `sha256 aa0f579e12b10eb7…` (LF) and the pinned `ba5cef9b93a5d0df…` (CRLF)
+  admitted by the newline-equivalence check in
+  `scripts/generate_replay_probe.py:audio_rsp_payload`, so the RSP payload
+  passes its content check without modification.
+
+Expected output directories once the inputs are complete (per
+`scripts/Prepare-DKR-Runtime.ps1`, `scripts/prepare_payloads.py` and
+`runtime-recomp/cmake/PreparedInputs.cmake`):
+
+```text
+v77 raw N64Recomp  : D:\Personal\C++\dkr-n64recomp\build\generated\v77\RecompiledFuncs
+v80 raw N64Recomp  : D:\Personal\C++\dkr-n64recomp\build\generated\v80\RecompiledFuncs
+prepared CPU v77   : D:\Personal\C++\dkr-n64recomp\build\prepared\generated-v77
+prepared CPU v80   : D:\Personal\C++\dkr-n64recomp\build\prepared\generated-v80
+RSP                : D:\Personal\C++\dkr-n64recomp\runtime-recomp\RecompiledRSP
+```
+
+Those directories do **not** exist yet, so no value has been recorded for
+`DKR_GENERATED_SOURCE_V77` / `DKR_GENERATED_SOURCE_V80` beyond their defaults
+(`runtime-recomp/RecompiledFuncs` for v77, empty for v80). Once prepared,
+`PreparedInputs.cmake` defaults them to `build/prepared/generated-v77` and
+`build/prepared/generated-v80`.
 
 **Remaining work (ordered):**
 
-1. Port `switch/src/hello.c` to the libnx 4.12 API and rebuild.
-2. Copy the resulting `.nro` to the SD card and boot it from the Homebrew Menu
-   in title mode (Album/applet mode lacks the memory budget).
-3. Run the host prepare pipeline with the existing workflow for both US
-   revisions and the RSP, and record the exact output paths.
-4. Decide whether to commit the scaffolding before starting M1.
+1. Boot `dkr-switch-hello.nro` on the console from the Homebrew Menu in title
+   mode, or push it with `nxlink` once the netloader answers; record firmware,
+   applet type and the banner.
+2. Supply the US v1.0 (v77) dump, then run
+   `scripts\Prepare-DKR-Runtime.ps1` (it also builds the decomp ELFs under WSL
+   and regenerates both payloads) and record the produced directories.
+3. Re-run `cmake --preset switch-scaffold --fresh` with the prepared bundle and
+   confirm `DKR_GENERATED_SOURCE_V77`/`_V80` resolve to `build/prepared/…`.
+4. Only then is M0 `DONE`; start M1 in a new session.
 
 **Notes / rulings from the prior run:**
 
@@ -453,76 +558,85 @@ Separate plans after phase 1:
 
 ## Active blockers and findings
 
-1. **Hello `.nro` does not compile** — `switch/src/hello.c` uses the pre-4.x
-   libnx API. This is the only thing between M0 configure and M0 build.
-2. **No generated CPU/RSP payloads** — `runtime-recomp/RecompiledFuncs` is
-   missing; the full `switch` preset stops at
-   `runtime-recomp/CMakeLists.txt:144`. The host prepare pipeline must run
-   before M1 can configure.
-3. **nxvk is not installed** — the checkout exists but no portlib. Full
+1. **No homebrew console reachable (M0 device criterion)** — no Nintendo USB
+   device, no `sys-ftpd` on port 5000 on the nine ARP hosts, and `nxlink`
+   broadcast/targeted retries get no response (2026-11-20). Needs the console on
+   `192.168.0.0/24`, in the Homebrew Menu (title mode) with the netloader, or
+   its IP for the FTP deploy path.
+2. **US v1.0 (v77) ROM dump missing** — only the US Rev A/v1.1 dump
+   (`SHA-1 6d96743d…`) is on this host; v77 requires
+   `SHA-1 0cb115d8716dbbc2922fda38e533b9fe63bb9670`. The Europe Rev 1 dump is
+   not a supported revision. Without v77 the prepare pipeline cannot run.
+3. **No generated payloads** — `runtime-recomp/RecompiledFuncs`,
+   `build/generated` and `build/prepared` are absent, so the full `switch`
+   preset still stops at `runtime-recomp/CMakeLists.txt:151`
+   (`DKR_GENERATED_SOURCE_V80` empty). The RSP payload is present and passes its
+   content gate; the CPU payloads wait on blocker 2. Host prerequisites still
+   to install/build during the run: WSL `mips-linux-gnu-ld`, decomp submodules,
+   `build/runtime-tools/n64recomp`.
+4. **nxvk is not installed** — the checkout exists but no portlib. Full
    configure will next fail at `FindNXVK.cmake`'s `nxvk.pc` existence check.
-4. **Switch game branch is not wired** — only `BUILD_TESTING` and the
+5. **Switch game branch is not wired** — only `BUILD_TESTING` and the
    `SwitchPlatform.cmake` include are gated; `DKRPortGame` has no Switch
    sources or links.
-5. **Work is uncommitted** — on `switch-port`, modified: `.gitignore`,
-   `dependencies.lock.json`, `runtime-recomp/CMakeLists.txt`,
-   `runtime-recomp/cmake/Updates.cmake`,
-   `runtime-recomp/src/game/updates/update_http.cpp`,
-   `runtime-recomp/src/game/updates/update_process.cpp`. Untracked: `switch/`,
-   `runtime-recomp/cmake/SwitchPlatform.cmake`, `runtime-recomp/cmake/switch/`,
-   `runtime-recomp/src/switch/`, `scripts/Build-NXVK.ps1`, `.opencode/`.
-   (`.opencode/` and the `.gitignore` "Opencode" block are local tooling noise,
-   not part of the port.)
+6. **Committed locally, not pushed** — this session commits the libnx fix and
+   this ledger on `switch-port`; `git push` is rejected by GitHub with no cached
+   credential, so the branch stays local.
+   `.opencode/` is untracked local tooling and is not part of the port.
 
 ## Immediate next actions
 
 Ordered so each step produces evidence for the ledger.
 
-1. **Fix the hello build (M0).**
-   Rewrite `switch/src/hello.c` for libnx 4.12:
-   `consoleInit(NULL)`, a `PadState` + `padInitializeDefault`, `padUpdate`,
-   `padGetButtonsDown`, `HidNpadButton_Plus/Minus`, `svcSleepThread`.
-   Verify: `cmake --build build/switch-scaffold --target DKRSwitchHello` →
-   `build/switch-scaffold/bin/Release/dkr-switch-hello.nro`.
-2. **Boot the hello `.nro` on hardware (M0).**
-   Copy to `sd:/switch/`, launch, confirm banner + clean exit. Record console
-   and firmware in this file.
-3. **Run the host prepare pipeline (M0 → M1).**
-   Use the existing `Prepare-DKR-Runtime` / `Prepare-Game-Source` workflow in
-   WSL for both US revisions and the RSP. Record the generated directories and
-   pass them as `DKR_GENERATED_SOURCE_V77` / `DKR_GENERATED_SOURCE_V80`.
-4. **Build nxvk (M1/M2 prerequisite).**
+1. **Boot the hello `.nro` on hardware (M0, blocked).**
+   Provide a reachable console in the Homebrew Menu (title mode) with the
+   netloader, then `nxlink -r 3 build\switch-scaffold\dkr-switch-hello.nro`, or
+   copy it to `sd:/switch/` and launch. Record firmware, applet type and the
+   banner in this file.
+2. **Run the host prepare pipeline (M0 → M1, blocked on the v77 ROM).**
+   With the US v1.0 dump present:
+   `powershell -ExecutionPolicy Bypass -File scripts\Prepare-DKR-Runtime.ps1`
+   (WSL builds both decomp ELFs, then `compose_payloads.py` and
+   `prepare_payloads.py`). Record `build/generated/v77|v80/RecompiledFuncs` and
+   `build/prepared/generated-v77|v80`, and confirm the CMake cache picks them up
+   as `DKR_GENERATED_SOURCE_V77`/`_V80`.
+3. **Build nxvk (M1/M2 prerequisite).**
    `scripts/Build-NXVK.ps1` (Docker); confirm
    `C:\devkitPro\portlibs\switch\lib\pkgconfig\nxvk.pc` and `libnvk*.a` exist.
-5. **Wire the Switch build (M1).**
+4. **Wire the Switch build (M1).**
    Add the `DKR_SWITCH` branches to `runtime-recomp/CMakeLists.txt` for
    `DKRPortGame` sources/links and forced feature gates; add
    `switch_platform.cpp`, the `game_main.cpp` entry branch, and save paths.
-6. **Renderer bring-up (M2).**
+5. **Renderer bring-up (M2).**
    Add `switch_rt64_window.cpp`, the `rt64_renderer.cpp` window branch, and the
    staged `patches/switch/` changes; package the host shader cache; run the
    Vulkan probe on device before full RT64.
-7. **Qualify and package (M3 → M4).**
+6. **Qualify and package (M3 → M4).**
    Gameplay checklist, memory/perf pass, packaging script, `docs/SWITCH.md`,
    CI check.
-8. **Rider pass (M5).**
+7. **Rider pass (M5).**
    Toolchain profile, deploy run configuration, docs.
 
 ## Verification commands
 
 ```powershell
-# Toolchain / scaffold (from repo root)
-cmake --preset switch-scaffold --fresh          # run in switch/
-cmake --build build/switch-scaffold --target DKRSwitchHello
+# Toolchain / scaffold (run both from switch/)
+cmake --preset switch-scaffold --fresh           # configure (exit 0)
+cmake --build ../build/switch-scaffold --target DKRSwitchHello      # ELF only
+cmake --build ../build/switch-scaffold --target DKRSwitchHello_nro  # .nro
+# -> build/switch-scaffold/dkr-switch-hello.nro
 
 # Full product configure (blocked until generated payloads + nxvk exist)
 cmake --preset switch --fresh                   # run in switch/
+
+# Hello deploy to a console running the netloader (Homebrew Menu, title mode)
+C:\devkitPro\tools\bin\nxlink.exe -r 3 build\switch-scaffold\dkr-switch-hello.nro
 
 # nxvk portlib
 powershell -ExecutionPolicy Bypass -File scripts/Build-NXVK.ps1
 Test-Path C:\devkitPro\portlibs\switch\lib\pkgconfig\nxvk.pc
 
-# Deploy (once a .nro exists and sys-ftpd is running)
+# Deploy the game (once a .nro exists and sys-ftpd is running)
 cmake --build build/switch --target dkr-switch-deploy
 ```
 
@@ -542,7 +656,7 @@ dir).
 | JIT executable memory (sljit RSP) | Homebrew allows it; keep interpreted RSP fallback selectable |
 | GPL-2.0+ nxvk statically linked | SWITCH.md + THIRD_PARTY.md notices; treat combined `.nro` as GPL-encumbered |
 | ROM/asset policy | No ROM or extracted Nintendo/Rare assets in the repo or package |
-| Uncommitted scaffolding | Commit M0 on `switch-port` before M1 wiring grows |
+| Uncommitted scaffolding | M0 scaffolding committed on `switch-port` (2026-11-20, local only); keep M1 wiring on top of that commit |
 
 ## Ledger protocol
 
@@ -561,4 +675,5 @@ When updating this file:
 | 2026-11-03 | Created this ledger. Verified environment, scaffold configure, hello build failure, missing generated payloads, missing nxvk portlib, uncommitted branch state. |
 | 2026-11-03 | Added the `handover/` issue pack: 21 per-area issues (SW-001…SW-021) plus index and template. |
 | 2026-11-20 | Rebased `switch-port` onto the post-fold `main` (v1.0.15, `8c742a0`). Re-verified scaffold configure, Switch markers and the unchanged hello failure. Recorded that the fold invalidated the old `patches/switch/` staging assumptions. |
+| 2026-11-20 | M0 session: ported `switch/src/hello.c` to libnx 4.12 and built `build/switch-scaffold/dkr-switch-hello.nro` (198,853 B, ELF64/AArch64). Device boot blocked (no console reachable: no USB device, no `:5000`, `nxlink` no response). Prepare pipeline blocked (US v1.0/v77 dump absent; US Rev A/v80 dump verified by SHA-1). Guard suite passes. Committed locally; push blocked by GitHub auth. |
 | 2026-11-20 | Removed the `handover/` pack. The milestone session protocol and the corrected M1/M2 prerequisites now live only in this file. |
