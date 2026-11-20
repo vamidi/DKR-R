@@ -24,15 +24,37 @@ The per-area work breakdown lives in `handover/`:
 
 | Field | Value |
 |---|---|
-| Last verified | 2026-11-03 |
+| Last verified | 2026-11-20 |
 | Repository | `D:\Personal\C++\dkr-n64recomp` |
-| Branch | `switch-port` (base: `main` @ `fa947ae`, v1.0.7 beta 2) |
-| Project version | `1.0.7+beta.2` (`VERSION`) |
+| Branch | `switch-port` (rebased on `main` after the post-fold `upstream/main` merge, `8c742a0`) |
+| Project version | `1.0.15` (`VERSION`) |
 | Target | Nintendo Switch homebrew, installable `DKR-R.nro` |
 | Toolchain | devkitA64 r30-1 / GCC 16.1.0 / libnx 4.12.0 / switch-tools 1.13.1 |
 | Build host | Windows + Ninja; WSL2/Ubuntu for the existing prepare pipeline |
 | Current milestone | **M0 — Scaffolding (in progress)** |
 | Phase 1 verdict | Not playable; no game `.nro` built yet |
+
+### Post-fold rebase (2026-11-20)
+
+The branch now sits on the completed fold instead of the v1.0.7 beta 2 tree.
+
+- `main` merged `upstream/main` (`53a78c3`, v1.0.15); `switch-port` was rebased
+  onto that merge (`8c742a0`). One conflict, in
+  `runtime-recomp/CMakeLists.txt`: the fold's `PreparedInputs.cmake` /
+  `BuildInputs.cmake` includes and formatting were kept, and the
+  `if(DKR_SWITCH) include(cmake/SwitchPlatform.cmake)` branch was re-added.
+- `cmake --preset switch-scaffold --fresh` configures green against the folded
+  tree (`build/switch-scaffold`, 2026-11-20). The cache still records
+  `DKR_SWITCH=ON`, `DKR_SWITCH_HAS_EXCEPTIONS=1`, `DKR_SWITCH_HAS_RTTI=1`, and
+  the `DKRSwitchHello` target is generated.
+- `DKRSwitchHello` still fails to compile with the same five libnx 4.x API
+  errors recorded under M0. The rebase did not change that debt.
+- The fold replaced the first-party patch layers with source and left
+  `architecture/pattern-guard-baseline.txt` empty. Any instruction in
+  `handover/` that stages changes through `patches/switch/` or assumes the
+  v1.0.7 layer chain must be revalidated before use. RT64, plume and nxvk
+  remain third-party pins; first-party Switch code belongs in `switch/` and
+  `runtime-recomp/src/switch/`.
 
 Status legend: `DONE` = exit criteria met and evidence recorded ·
 `IN PROGRESS` = work landed, criteria not met · `BLOCKED` = waiting on a
@@ -465,3 +487,4 @@ When updating this file:
 |---|---|
 | 2026-11-03 | Created this ledger. Verified environment, scaffold configure, hello build failure, missing generated payloads, missing nxvk portlib, uncommitted branch state. |
 | 2026-11-03 | Added the `handover/` issue pack: 21 per-area issues (SW-001…SW-021) plus index and template. |
+| 2026-11-20 | Rebased `switch-port` onto the post-fold `main` (v1.0.15, `8c742a0`). Re-verified scaffold configure, Switch markers and the unchanged hello failure. Recorded that the fold invalidated the old `patches/switch/` staging assumptions. |
